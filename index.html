@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<!-- saved from url=(0053)file:///C:/Users/HARRY/Downloads/asset-tracker_1.html -->
+<html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>자산 트래커</title>
+<link href="./index_files/css2" rel="stylesheet">
+<script src="./index_files/chart.umd.js.download"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCjfHSpf45cAlogkRvrlI4Nqo1sL2oSmSk",
+  authDomain: "budget-linked-asset-management.firebaseapp.com",
+  projectId: "budget-linked-asset-management",
+  storageBucket: "budget-linked-asset-management.firebasestorage.app",
+  messagingSenderId: "163337909333",
+  appId: "1:163337909333:web:599645162917fe6d2bd0dc"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const DATA_DOC = doc(db, "userdata", "main");
+
+let _saveTimer = null;
+window.fbSave = function() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    try {
+      await setDoc(DATA_DOC, {
+        transactions: window._transactions,
+        assets: window._assets,
+        goals: window._goals,
+        updatedAt: Date.now()
+      });
+    } catch(e) { console.error("저장 실패", e); }
+  }, 600);
+};
+
+async function fbLoad() {
+  showStatus("동기화 중...");
+  try {
+    const snap = await getDoc(DATA_DOC);
+    if(snap.exists()) {
+      const d = snap.data();
+      window._transactions = d.transactions || [];
+      window._assets = d.assets || [];
+      window._goals = d.goals || [];
+    }
+  } catch(e) {
+    console.error("불러오기 실패", e);
+    window._transactions = JSON.parse(localStorage.getItem('af_transactions')||'[]');
+    window._assets = JSON.parse(localStorage.getItem('af_assets')||'[]');
+    window._goals = JSON.parse(localStorage.getItem('af_goals')||'[]');
+  }
+  hideStatus();
+  if(window._appReady) window._appReady();
+}
+
+onSnapshot(DATA_DOC, (snap) => {
+  if(!snap.exists()) return;
+  const d = snap.data();
+  window._transactions = d.transactions || [];
+  window._assets = d.assets || [];
+  window._goals = d.goals || [];
+  if(window._rerender) window._rerender();
+});
+
+function showStatus(msg){
+  let el=document.getElementById('sync-status');
+  if(!el){el=document.createElement('div');el.id='sync-status';el.style.cssText='position:fixed;bottom:16px;right:16px;background:#1a1e28;border:1px solid rgba(255,255,255,0.1);color:#8890a4;font-size:11px;padding:6px 12px;border-radius:6px;z-index:999;font-family:DM Mono,monospace';document.body.appendChild(el);}
+  el.textContent=msg;el.style.display='block';
+}
+function hideStatus(){
+  const el=document.getElementById('sync-status');
+  if(el) el.style.display='none';
+}
+
+window._fbLoad = fbLoad;
+</script>
+<style>
+:root {
+  --bg: #0d0f14;
+  --bg2: #13161e;
+  --bg3: #1a1e28;
+  --bg4: #21263300;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text: #e8eaf0;
+  --text2: #8890a4;
+  --text3: #4e5568;
+  --green: #00e5a0;
+  --green-dim: rgba(0,229,160,0.12);
+  --red: #ff4f6d;
+  --red-dim: rgba(255,79,109,0.12);
+  --blue: #4d8cff;
+  --blue-dim: rgba(77,140,255,0.12);
+  --amber: #ffb84d;
+  --amber-dim: rgba(255,184,77,0.12);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6}
+
+/* scrollbar */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* layout */
+.layout{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+
+/* sidebar */
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:24px 0;display:flex;flex-direction:column}
+.logo{padding:0 20px 24px;border-bottom:1px solid var(--border)}
+.logo-text{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;color:var(--green);letter-spacing:0.05em}
+.logo-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.nav{flex:1;padding:16px 0}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;font-size:13px;color:var(--text2);cursor:pointer;transition:all 0.15s;border-left:2px solid transparent}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,0.04)}
+.nav-item.active{color:var(--green);background:var(--green-dim);border-left-color:var(--green)}
+.nav-icon{width:16px;height:16px;opacity:0.7;flex-shrink:0}
+.nav-item.active .nav-icon{opacity:1}
+
+/* main */
+.main{overflow-y:auto;background:var(--bg)}
+.page{display:none;padding:28px 32px;animation:fadeIn 0.2s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+/* page header */
+.page-header{margin-bottom:24px}
+.page-title{font-size:20px;font-weight:700;color:var(--text)}
+.page-sub{font-size:12px;color:var(--text3);margin-top:3px}
+
+/* metric cards */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.metric-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.metric-label{font-size:11px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em}
+.metric-value{font-family:'DM Mono',monospace;font-size:18px;font-weight:500;color:var(--text)}
+.metric-value.green{color:var(--green)}
+.metric-value.red{color:var(--red)}
+
+/* goal strip */
+.goal-strip{display:flex;flex-direction:column;gap:10px;margin-bottom:24px}
+.goal-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.goal-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.goal-name{font-size:13px;color:var(--text)}
+.goal-pct{font-family:'DM Mono',monospace;font-size:15px;font-weight:500}
+.goal-pct.g{color:var(--green)}.goal-pct.a{color:var(--amber)}.goal-pct.r{color:var(--red)}
+.progress-track{height:4px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;margin-bottom:6px}
+.progress-fill{height:100%;border-radius:4px;transition:width 0.6s cubic-bezier(0.4,0,0.2,1)}
+.goal-nums{display:flex;justify-content:space-between;font-size:11px;color:var(--text3)}
+
+/* chart section */
+.chart-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
+.chart-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.chart-title{font-size:13px;color:var(--text2)}
+.chart-controls{display:flex;align-items:center;gap:8px}
+.period-btn{font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text2);cursor:pointer;transition:all 0.12s;font-family:'DM Mono',monospace}
+.period-btn:hover{border-color:var(--border2);color:var(--text)}
+.period-btn.active{background:var(--green);border-color:var(--green);color:#000;font-weight:500}
+.badge{font-size:11px;padding:4px 10px;border-radius:20px;font-family:'DM Mono',monospace;font-weight:500}
+.badge.up{background:var(--green-dim);color:var(--green)}
+.badge.dn{background:var(--red-dim);color:var(--red)}
+.chart-wrap{position:relative;width:100%;height:220px}
+.charts-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.chart-sm-wrap{position:relative;width:100%;height:170px}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.legend-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+/* forms */
+.section-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;margin-top:20px}
+.section-label:first-child{margin-top:0}
+.type-toggle{display:flex;background:var(--bg3);border-radius:var(--radius-sm);padding:3px;gap:2px;width:fit-content;margin-bottom:12px}
+.type-btn{padding:6px 16px;border-radius:6px;font-size:12px;border:none;background:none;color:var(--text2);cursor:pointer;transition:all 0.15s}
+.type-btn.income.active{background:var(--green-dim);color:var(--green)}
+.type-btn.expense.active{background:var(--red-dim);color:var(--red)}
+.form-row{display:grid;gap:10px;align-items:end;margin-bottom:16px}
+.form-row.r5{grid-template-columns:1.2fr 1fr 1fr 1fr auto}
+.form-row.r3{grid-template-columns:1fr 1fr auto}
+.field label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-spacing:0.03em}
+.field input,.field select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:13px;color:var(--text);font-family:'Noto Sans KR',sans-serif;outline:none;transition:border-color 0.15s}
+.field input:focus,.field select:focus{border-color:var(--border2)}
+.field select option{background:var(--bg3)}
+.add-btn{padding:8px 18px;background:var(--green);border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:500;color:#000;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;font-family:'Noto Sans KR',sans-serif}
+.add-btn:hover{opacity:0.85}
+
+/* filter chips */
+.filter-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:none;font-size:11px;color:var(--text2);cursor:pointer;transition:all 0.12s}
+.chip:hover{border-color:var(--border2);color:var(--text)}
+.chip.active{font-weight:500}
+
+/* transaction list */
+.tx-list{display:flex;flex-direction:column;gap:6px}
+.tx-item{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);transition:border-color 0.15s}
+.tx-item:hover{border-color:var(--border2)}
+.tx-left{display:flex;flex-direction:column;gap:3px}
+.tx-desc{font-size:13px;color:var(--text)}
+.tx-meta{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3)}
+.cat-tag{padding:1px 7px;border-radius:20px;font-size:10px}
+.tx-right{display:flex;align-items:center;gap:10px}
+.tx-amount{font-family:'DM Mono',monospace;font-size:13px;font-weight:500}
+.tx-amount.income{color:var(--green)}.tx-amount.expense{color:var(--red)}
+.del-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;line-height:1;padding:0 2px;transition:color 0.12s}
+.del-btn:hover{color:var(--red)}
+
+/* asset list */
+.asset-item{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px}
+.asset-name{font-size:13px;color:var(--text)}
+.asset-right{display:flex;align-items:center;gap:12px}
+.asset-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;color:var(--text)}
+
+/* divider */
+.divider{height:1px;background:var(--border);margin:24px 0}
+
+/* empty */
+.empty{text-align:center;padding:32px;font-size:12px;color:var(--text3);border:1px dashed var(--border);border-radius:var(--radius)}
+
+/* scrollable list area */
+.list-scroll{max-height:400px;overflow-y:auto;padding-right:4px}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-text">ASSET.FLOW</div>
+      <div class="logo-sub">내 자산 추이 트래커</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-item active" onclick="switchPage(&#39;overview&#39;)">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1.5"></rect><rect x="9" y="1" width="6" height="6" rx="1.5"></rect><rect x="1" y="9" width="6" height="6" rx="1.5"></rect><rect x="9" y="9" width="6" height="6" rx="1.5"></rect></svg>
+        자산 추이
+      </div>
+      <div class="nav-item" onclick="switchPage(&#39;ledger&#39;)">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h8"></path></svg>
+        가계부
+      </div>
+      <div class="nav-item" onclick="switchPage(&#39;assets&#39;)">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><path d="M8 5v3l2 2"></path></svg>
+        자산 · 목표
+      </div>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <!-- 자산 추이 -->
+    <div id="page-overview" class="page active">
+      <div class="page-header">
+        <div class="page-title">자산 추이</div>
+        <div class="page-sub">자산 변동을 실시간으로 확인하세요</div>
+      </div>
+      <div class="metrics">
+        <div class="metric-card"><div class="metric-label">총 자산</div><div class="metric-value" id="m-total">₩0</div></div>
+        <div class="metric-card"><div class="metric-label">이번 달 수익</div><div class="metric-value green" id="m-income">₩0</div></div>
+        <div class="metric-card"><div class="metric-label">이번 달 지출</div><div class="metric-value red" id="m-expense">₩0</div></div>
+        <div class="metric-card"><div class="metric-label">이번 달 순변동</div><div class="metric-value" id="m-net">₩0</div></div>
+      </div>
+      <div id="goal-strip" class="goal-strip"></div>
+      <div class="chart-section">
+        <div class="chart-top">
+          <span class="chart-title">자산 추이 차트</span>
+          <div class="chart-controls">
+            <span class="badge up" id="chart-badge">—</span>
+            <button class="period-btn active" onclick="setPeriod(&#39;1W&#39;,this)">1W</button>
+            <button class="period-btn" onclick="setPeriod(&#39;1M&#39;,this)">1M</button>
+            <button class="period-btn" onclick="setPeriod(&#39;3M&#39;,this)">3M</button>
+            <button class="period-btn" onclick="setPeriod(&#39;ALL&#39;,this)">ALL</button>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="lineChart" role="img" aria-label="자산 추이 라인 차트">자산 변동 데이터</canvas></div>
+      </div>
+      <div class="charts-2col">
+        <div class="chart-section" style="margin-bottom:0">
+          <div class="chart-title" style="margin-bottom:10px">카테고리별 지출</div>
+          <div id="exp-legend" class="legend"></div>
+          <div class="chart-sm-wrap"><canvas id="expDonut" role="img" aria-label="지출 도넛 차트">지출 카테고리</canvas></div>
+        </div>
+        <div class="chart-section" style="margin-bottom:0">
+          <div class="chart-title" style="margin-bottom:10px">카테고리별 수익</div>
+          <div id="inc-legend" class="legend"></div>
+          <div class="chart-sm-wrap"><canvas id="incDonut" role="img" aria-label="수익 도넛 차트">수익 카테고리</canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 가계부 -->
+    <div id="page-ledger" class="page">
+      <div class="page-header">
+        <div class="page-title">가계부</div>
+        <div class="page-sub">수익과 지출을 카테고리별로 기록하세요</div>
+      </div>
+      <div class="section-label">거래 추가</div>
+      <div class="type-toggle">
+        <button class="type-btn income active" id="btn-inc" onclick="setType(&#39;income&#39;)">+ 수익</button>
+        <button class="type-btn expense" id="btn-exp" onclick="setType(&#39;expense&#39;)">− 지출</button>
+      </div>
+      <div class="form-row r5">
+        <div class="field"><label>설명</label><input type="text" id="tx-desc" placeholder="예: 월급, 카페 커피..."></div>
+        <div class="field"><label>금액 (원)</label><input type="number" id="tx-amount" min="0" placeholder="0"></div>
+        <div class="field"><label>카테고리</label><select id="tx-cat"><option value="월급">월급</option><option value="부업">부업</option><option value="투자수익">투자수익</option><option value="용돈">용돈</option><option value="기타수익">기타수익</option></select></div>
+        <div class="field"><label>날짜</label><input type="date" id="tx-date"></div>
+        <button class="add-btn" onclick="addTx()" style="align-self:end">추가</button>
+      </div>
+      <div class="section-label">전체 내역</div>
+      <div class="filter-row" id="filter-row"><button class="chip active" style="background:rgba(0,229,160,0.12);color:#00e5a0;border-color:#00e5a060" onclick="setCatFilter(&#39;all&#39;)">전체</button></div>
+      <div class="list-scroll">
+        <div class="tx-list" id="tx-list"><div class="empty">거래 내역이 없습니다</div></div>
+      </div>
+    </div>
+
+    <!-- 자산·목표 -->
+    <div id="page-assets" class="page">
+      <div class="page-header">
+        <div class="page-title">자산 · 목표</div>
+        <div class="page-sub">보유 자산과 목표 금액을 관리하세요</div>
+      </div>
+      <div class="section-label">자산 등록</div>
+      <div class="form-row r3">
+        <div class="field"><label>자산 이름</label><input type="text" id="asset-name" placeholder="예: 예금, 주식, 부동산..."></div>
+        <div class="field"><label>금액 (원)</label><input type="number" id="asset-amount" min="0" placeholder="0"></div>
+        <button class="add-btn" onclick="addAsset()" style="align-self:end">등록</button>
+      </div>
+      <div id="asset-list"><div class="empty">등록된 자산이 없습니다</div></div>
+
+      <div class="divider"></div>
+
+      <div class="section-label">목표 자산 설정</div>
+      <div class="form-row r3">
+        <div class="field"><label>목표 이름</label><input type="text" id="goal-name" placeholder="예: 비상금 1천만원, 내집마련..."></div>
+        <div class="field"><label>목표 금액 (원)</label><input type="number" id="goal-target" min="0" placeholder="0"></div>
+        <button class="add-btn" onclick="addGoal()" style="align-self:end">추가</button>
+      </div>
+      <div id="goal-list"><div class="empty">설정된 목표가 없습니다</div></div>
+    </div>
+  </main>
+</div>
+
+<script>
+window._transactions = [];
+window._assets = [];
+window._goals = [];
+
+const CATS = {
+  income: ['월급','부업','투자수익','용돈','기타수익'],
+  expense: ['식비','교통','주거','쇼핑','의료','문화/여가','교육','저축/투자','기타지출']
+};
+const CAT_COLORS = {
+  '월급':'#4d8cff','부업':'#a78bfa','투자수익':'#00e5a0','용돈':'#34d399','기타수익':'#8890a4',
+  '식비':'#ff4f6d','교통':'#ff7c43','주거':'#ffb84d','쇼핑':'#f472b6','의료':'#c084fc',
+  '문화/여가':'#818cf8','교육':'#60a5fa','저축/투자':'#2dd4bf','기타지출':'#6b7280'
+};
+
+let currentType='income', currentPeriod='1W', filterCat='all';
+let lineC=null, expC=null, incC=null;
+
+Object.defineProperty(window, 'transactions', {get:()=>window._transactions, set:v=>{window._transactions=v;}});
+Object.defineProperty(window, 'assets', {get:()=>window._assets, set:v=>{window._assets=v;}});
+Object.defineProperty(window, 'goals', {get:()=>window._goals, set:v=>{window._goals=v;}});
+
+function save(){ if(window.fbSave) window.fbSave(); }
+
+const today = new Date();
+document.getElementById('tx-date').value = today.toISOString().split('T')[0];
+
+window._rerender = function(){
+  renderTxList(); renderAssetList(); renderGoalListPage();
+  updateMetrics(); renderAll();
+};
+window._appReady = function(){
+  window._rerender();
+};
+if(window._fbLoad) window._fbLoad();
+
+function fmt(n){ return '₩'+Math.round(n).toLocaleString('ko-KR'); }
+
+function switchPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  const pages=['overview','ledger','assets'];
+  document.querySelectorAll('.nav-item')[pages.indexOf(name)].classList.add('active');
+  if(name==='overview') renderAll();
+}
+
+function setType(t){
+  currentType=t;
+  document.getElementById('btn-inc').classList.toggle('active',t==='income');
+  document.getElementById('btn-exp').classList.toggle('active',t==='expense');
+  updateCatSelect();
+}
+
+function updateCatSelect(){
+  const sel=document.getElementById('tx-cat');
+  sel.innerHTML=CATS[currentType].map(c=>`<option value="${c}">${c}</option>`).join('');
+}
+updateCatSelect();
+
+function addTx(){
+  const desc=document.getElementById('tx-desc').value.trim();
+  const amount=parseFloat(document.getElementById('tx-amount').value);
+  const cat=document.getElementById('tx-cat').value;
+  const date=document.getElementById('tx-date').value;
+  if(!desc||!amount||!date) return;
+  transactions.push({id:Date.now(),desc,amount,date,type:currentType,cat});
+  transactions.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  document.getElementById('tx-desc').value='';
+  document.getElementById('tx-amount').value='';
+  save(); renderTxList(); updateMetrics(); renderAll();
+}
+
+function delTx(id){
+  transactions=transactions.filter(t=>t.id!==id);
+  save(); renderTxList(); updateMetrics(); renderAll();
+}
+
+function renderTxList(){
+  const list=document.getElementById('tx-list');
+  let txs=filterCat==='all'?transactions:transactions.filter(t=>t.cat===filterCat);
+  if(!txs.length){list.innerHTML='<div class="empty">거래 내역이 없습니다</div>';renderFilterRow();return;}
+  list.innerHTML=txs.map(tx=>{
+    const c=CAT_COLORS[tx.cat]||'#888';
+    return `<div class="tx-item">
+      <div class="tx-left">
+        <span class="tx-desc">${tx.desc}</span>
+        <span class="tx-meta">
+          ${tx.date}
+          <span class="cat-tag" style="background:${c}20;color:${c};border:1px solid ${c}40">${tx.cat}</span>
+        </span>
+      </div>
+      <div class="tx-right">
+        <span class="tx-amount ${tx.type}">${tx.type==='income'?'+':'−'}${fmt(tx.amount)}</span>
+        <button class="del-btn" onclick="delTx(${tx.id})">×</button>
+      </div>
+    </div>`;
+  }).join('');
+  renderFilterRow();
+}
+
+function renderFilterRow(){
+  const allCats=[...new Set(transactions.map(t=>t.cat))];
+  const row=document.getElementById('filter-row');
+  row.innerHTML=`<button class="chip${filterCat==='all'?' active':''}" style="${filterCat==='all'?'background:rgba(0,229,160,0.12);color:#00e5a0;border-color:#00e5a060':''}" onclick="setCatFilter('all')">전체</button>`
+    +allCats.map(c=>{
+      const col=CAT_COLORS[c]||'#888';
+      const isA=filterCat===c;
+      return `<button class="chip${isA?' active':''}" style="${isA?`background:${col}20;color:${col};border-color:${col}60`:`color:${col};border-color:${col}30`}" onclick="setCatFilter('${c}')">${c}</button>`;
+    }).join('');
+}
+
+function setCatFilter(cat){ filterCat=cat; renderTxList(); }
+
+function addAsset(){
+  const name=document.getElementById('asset-name').value.trim();
+  const amount=parseFloat(document.getElementById('asset-amount').value);
+  if(!name||!amount) return;
+  assets.push({id:Date.now(),name,amount});
+  document.getElementById('asset-name').value='';
+  document.getElementById('asset-amount').value='';
+  save(); renderAssetList(); updateMetrics(); renderAll();
+}
+
+function delAsset(id){
+  assets=assets.filter(a=>a.id!==id);
+  save(); renderAssetList(); updateMetrics(); renderAll();
+}
+
+function renderAssetList(){
+  const list=document.getElementById('asset-list');
+  if(!assets.length){list.innerHTML='<div class="empty">등록된 자산이 없습니다</div>';return;}
+  list.innerHTML=assets.map(a=>`
+    <div class="asset-item">
+      <span class="asset-name">${a.name}</span>
+      <div class="asset-right">
+        <span class="asset-val">${fmt(a.amount)}</span>
+        <button class="del-btn" onclick="delAsset(${a.id})">×</button>
+      </div>
+    </div>`).join('');
+}
+
+function addGoal(){
+  const name=document.getElementById('goal-name').value.trim();
+  const target=parseFloat(document.getElementById('goal-target').value);
+  if(!name||!target) return;
+  goals.push({id:Date.now(),name,target});
+  document.getElementById('goal-name').value='';
+  document.getElementById('goal-target').value='';
+  save(); renderGoalListPage(); renderGoalStrip();
+}
+
+function delGoal(id){
+  goals=goals.filter(g=>g.id!==id);
+  save(); renderGoalListPage(); renderGoalStrip();
+}
+
+function getTotalAsset(){
+  const base=assets.reduce((s,a)=>s+a.amount,0);
+  const inc=transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const exp=transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  return base+inc-exp;
+}
+
+function goalCard(g, withDel){
+  const total=getTotalAsset();
+  const pct=Math.min(100,Math.round((total/g.target)*100));
+  const col=pct>=100?'#00e5a0':pct>=50?'#ffb84d':'#ff4f6d';
+  const cls=pct>=100?'g':pct>=50?'a':'r';
+  return `<div class="goal-card">
+    <div class="goal-row">
+      <span class="goal-name">${g.name}</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="goal-pct ${cls}">${pct}%</span>
+        ${withDel?`<button class="del-btn" onclick="delGoal(${g.id})">×</button>`:''}
+      </div>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div>
+    <div class="goal-nums"><span>${fmt(total)} 보유</span><span>목표 ${fmt(g.target)}</span></div>
+  </div>`;
+}
+
+function renderGoalListPage(){
+  const list=document.getElementById('goal-list');
+  if(!goals.length){list.innerHTML='<div class="empty">설정된 목표가 없습니다</div>';return;}
+  list.innerHTML=goals.map(g=>goalCard(g,true)).join('');
+}
+
+function renderGoalStrip(){
+  const strip=document.getElementById('goal-strip');
+  strip.innerHTML=goals.map(g=>goalCard(g,false)).join('');
+}
+
+function updateMetrics(){
+  const total=getTotalAsset();
+  const now=new Date();
+  const thisMonth=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const mTx=transactions.filter(t=>t.date.startsWith(thisMonth));
+  const inc=mTx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const exp=mTx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const net=inc-exp;
+  document.getElementById('m-total').textContent=fmt(total);
+  document.getElementById('m-income').textContent=fmt(inc);
+  document.getElementById('m-expense').textContent=fmt(exp);
+  const el=document.getElementById('m-net');
+  el.textContent=(net>=0?'+':'')+fmt(net);
+  el.className='metric-value '+(net>=0?'green':'red');
+  renderGoalStrip();
+  renderGoalListPage();
+}
+
+function getLineData(){
+  const base=assets.reduce((s,a)=>s+a.amount,0);
+  const sorted=[...transactions].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const now=new Date();
+  let startDate;
+  if(currentPeriod==='1W'){startDate=new Date(now);startDate.setDate(now.getDate()-6);}
+  else if(currentPeriod==='1M'){startDate=new Date(now);startDate.setDate(now.getDate()-29);}
+  else if(currentPeriod==='3M'){startDate=new Date(now);startDate.setDate(now.getDate()-89);}
+  else{startDate=sorted.length?new Date(sorted[0].date):new Date(now);startDate.setDate(startDate.getDate()-1);}
+  const allDates=[];
+  for(let d=new Date(startDate);d<=now;d.setDate(d.getDate()+1)){
+    allDates.push(d.toISOString().split('T')[0]);
+  }
+  let running=base;
+  sorted.filter(t=>t.date<allDates[0]).forEach(t=>{running+=t.type==='income'?t.amount:-t.amount;});
+  const labels=[],data=[];
+  allDates.forEach(date=>{
+    sorted.filter(t=>t.date===date).forEach(t=>{running+=t.type==='income'?t.amount:-t.amount;});
+    labels.push(date.slice(5));data.push(Math.round(running));
+  });
+  return{labels,data};
+}
+
+function setPeriod(p,btn){
+  currentPeriod=p;
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAll();
+}
+
+function renderLineChart(){
+  const{labels,data}=getLineData();
+  const badge=document.getElementById('chart-badge');
+  if(data.length<2){badge.textContent='—';badge.className='badge up';if(lineC){lineC.destroy();lineC=null;}return;}
+  const change=data[data.length-1]-data[0];
+  const pct=data[0]!==0?((change/Math.abs(data[0]))*100).toFixed(2):'0.00';
+  const isUp=change>=0;
+  badge.textContent=(isUp?'▲ +':'▼ ')+pct+'%';
+  badge.className='badge '+(isUp?'up':'dn');
+  const col=isUp?'#00e5a0':'#ff4f6d';
+  const fill=isUp?'rgba(0,229,160,0.06)':'rgba(255,79,109,0.06)';
+  if(lineC) lineC.destroy();
+  lineC=new Chart(document.getElementById('lineChart').getContext('2d'),{
+    type:'line',
+    data:{labels,datasets:[{data,borderColor:col,backgroundColor:fill,borderWidth:2,pointRadius:data.length<=10?3:0,pointHoverRadius:5,pointBackgroundColor:col,fill:true,tension:0.4}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1e28',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,titleColor:'#8890a4',bodyColor:'#e8eaf0',callbacks:{label:c=>'  '+fmt(c.parsed.y)}}},
+      scales:{
+        x:{ticks:{font:{size:10,family:'DM Mono'},color:'#4e5568',autoSkip:true,maxTicksLimit:8},grid:{display:false},border:{display:false}},
+        y:{ticks:{font:{size:10,family:'DM Mono'},color:'#4e5568',callback:v=>{if(Math.abs(v)>=100000000)return(v/100000000).toFixed(1)+'억';if(Math.abs(v)>=10000)return(v/10000).toFixed(0)+'만';return v.toLocaleString();}},grid:{color:'rgba(255,255,255,0.04)'},border:{display:false}}
+      }
+    }
+  });
+}
+
+function renderDonut(canvasId,legendId,type){
+  const bycat={};
+  transactions.filter(t=>t.type===type).forEach(t=>{bycat[t.cat]=(bycat[t.cat]||0)+t.amount;});
+  const labels=Object.keys(bycat);
+  const vals=labels.map(l=>Math.round(bycat[l]));
+  const colors=labels.map(l=>CAT_COLORS[l]||'#888');
+  const total=vals.reduce((s,v)=>s+v,0);
+  document.getElementById(legendId).innerHTML=labels.length?labels.map((l,i)=>`
+    <span class="legend-item"><span class="legend-dot" style="background:${colors[i]}"></span>${l} ${total?Math.round(vals[i]/total*100)+'%':''}</span>`).join('')
+    :'<span style="font-size:11px;color:var(--text3)">데이터 없음</span>';
+  const ctx=document.getElementById(canvasId).getContext('2d');
+  if(type==='expense'&&expC){expC.destroy();}
+  if(type==='income'&&incC){incC.destroy();}
+  const ch=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels,datasets:[{data:vals.length?vals:[1],backgroundColor:vals.length?colors:['#1a1e28'],borderWidth:vals.length?1:0,borderColor:'rgba(255,255,255,0.06)'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{display:false},tooltip:{enabled:vals.length>0,backgroundColor:'#1a1e28',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,titleColor:'#8890a4',bodyColor:'#e8eaf0',callbacks:{label:c=>`  ${c.label}: ${fmt(c.parsed)}`}}}}
+  });
+  if(type==='expense') expC=ch; else incC=ch;
+}
+
+function renderAll(){
+  renderLineChart();
+  renderDonut('expDonut','exp-legend','expense');
+  renderDonut('incDonut','inc-legend','income');
+}
+
+updateCatSelect();
+renderFilterRow();
+</script>
+
+
+</body></html>
