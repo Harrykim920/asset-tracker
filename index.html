@@ -182,12 +182,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .type-btn.income.active{background:var(--green-dim);color:var(--green)}
 .type-btn.expense.active{background:var(--red-dim);color:var(--red)}
 .form-row{display:grid;gap:10px;align-items:end;margin-bottom:16px}
-.form-row.r5{grid-template-columns:1.2fr 1fr 1fr 1fr auto}
-.form-row.r3{grid-template-columns:1fr 1fr auto}
+.form-row.r5{grid-template-columns:1.2fr 0.8fr 0.7fr 0.8fr 1fr auto}
+.form-row.r3{grid-template-columns:1fr 0.8fr 0.7fr auto}
 .field label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-spacing:0.03em}
 .field input,.field select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:13px;color:var(--text);font-family:'Noto Sans KR',sans-serif;outline:none;transition:border-color 0.15s}
 .field input:focus,.field select:focus{border-color:var(--border2)}
 .field select option{background:var(--bg3)}
+.field .hint{font-size:10px;color:var(--text3);margin-top:4px;font-family:'DM Mono',monospace}
 .add-btn{padding:8px 18px;background:var(--green);border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:500;color:#000;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;font-family:'Noto Sans KR',sans-serif}
 .add-btn:hover{opacity:0.85}
 
@@ -304,7 +305,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       </div>
       <div class="form-row r5">
         <div class="field"><label>설명</label><input type="text" id="tx-desc" placeholder="예: 월급, 카페 커피..."></div>
-        <div class="field"><label>금액 (원)</label><input type="number" id="tx-amount" min="0" placeholder="0"></div>
+        <div class="field"><label>금액</label><input type="number" id="tx-amount" min="0" placeholder="0"></div>
+        <div class="field"><label>통화</label><select id="tx-currency" onchange="updateRateHint()"><option value="KRW">KRW</option><option value="THB">THB</option><option value="USD">USD</option></select><div class="hint" id="tx-rate-hint">1 KRW = ₩1</div></div>
         <div class="field"><label>카테고리</label><select id="tx-cat"><option value="월급">월급</option><option value="부업">부업</option><option value="투자수익">투자수익</option><option value="용돈">용돈</option><option value="기타수익">기타수익</option></select></div>
         <div class="field"><label>날짜</label><input type="date" id="tx-date"></div>
         <button class="add-btn" onclick="addTx()" style="align-self:end">추가</button>
@@ -325,7 +327,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       <div class="section-label">자산 등록</div>
       <div class="form-row r3">
         <div class="field"><label>자산 이름</label><input type="text" id="asset-name" placeholder="예: 예금, 주식, 부동산..."></div>
-        <div class="field"><label>금액 (원)</label><input type="number" id="asset-amount" min="0" placeholder="0"></div>
+        <div class="field"><label>금액</label><input type="number" id="asset-amount" min="0" placeholder="0"></div>
+        <div class="field"><label>통화</label><select id="asset-currency" onchange="updateRateHint()"><option value="KRW">KRW</option><option value="THB">THB</option><option value="USD">USD</option></select><div class="hint" id="asset-rate-hint">1 KRW = ₩1</div></div>
         <button class="add-btn" onclick="addAsset()" style="align-self:end">등록</button>
       </div>
       <div id="asset-list"><div class="empty">등록된 자산이 없습니다</div></div>
@@ -358,6 +361,43 @@ const CAT_COLORS = {
   '문화/여가':'#818cf8','교육':'#60a5fa','저축/투자':'#2dd4bf','기타지출':'#6b7280'
 };
 
+const FX_RATES = {
+  KRW: 1,
+  THB: 46,
+  USD: 1470
+};
+
+const CURRENCY_SYMBOLS = {
+  KRW: '₩',
+  THB: '฿',
+  USD: '$'
+};
+
+function toKRW(amount, currency){
+  return Number(amount || 0) * (FX_RATES[currency] || 1);
+}
+
+function getKRW(item){
+  return Number(item.krwAmount ?? item.amount ?? 0);
+}
+
+function fmtOriginal(amount, currency){
+  const n = Number(amount || 0);
+  if(currency === 'THB') return '฿' + n.toLocaleString('en-US');
+  if(currency === 'USD') return '$' + n.toLocaleString('en-US');
+  return fmt(n);
+}
+
+function updateRateHint(){
+  const txCur = document.getElementById('tx-currency')?.value || 'KRW';
+  const assetCur = document.getElementById('asset-currency')?.value || 'KRW';
+  const txHint = document.getElementById('tx-rate-hint');
+  const assetHint = document.getElementById('asset-rate-hint');
+  if(txHint) txHint.textContent = `1 ${txCur} = ₩${FX_RATES[txCur].toLocaleString('ko-KR')}`;
+  if(assetHint) assetHint.textContent = `1 ${assetCur} = ₩${FX_RATES[assetCur].toLocaleString('ko-KR')}`;
+}
+
+
 let currentType='income', currentPeriod='1W', filterCat='all';
 let lineC=null, expC=null, incC=null;
 
@@ -369,6 +409,7 @@ function save(){ if(window.fbSave) window.fbSave(); }
 
 const today = new Date();
 document.getElementById('tx-date').value = today.toISOString().split('T')[0];
+updateRateHint();
 
 window._rerender = function(){
   renderTxList(); renderAssetList(); renderGoalListPage();
@@ -406,10 +447,13 @@ updateCatSelect();
 function addTx(){
   const desc=document.getElementById('tx-desc').value.trim();
   const amount=parseFloat(document.getElementById('tx-amount').value);
+  const currency=document.getElementById('tx-currency').value;
+  const rate=FX_RATES[currency] || 1;
+  const krwAmount=toKRW(amount,currency);
   const cat=document.getElementById('tx-cat').value;
   const date=document.getElementById('tx-date').value;
   if(!desc||!amount||!date) return;
-  transactions.push({id:Date.now(),desc,amount,date,type:currentType,cat});
+  transactions.push({id:Date.now(),desc,amount,currency,rate,krwAmount,date,type:currentType,cat});
   transactions.sort((a,b)=>new Date(b.date)-new Date(a.date));
   document.getElementById('tx-desc').value='';
   document.getElementById('tx-amount').value='';
@@ -436,7 +480,7 @@ function renderTxList(){
         </span>
       </div>
       <div class="tx-right">
-        <span class="tx-amount ${tx.type}">${tx.type==='income'?'+':'−'}${fmt(tx.amount)}</span>
+        <span class="tx-amount ${tx.type}">${tx.type==='income'?'+':'−'}${fmtOriginal(tx.amount,tx.currency||'KRW')}${(tx.currency&&tx.currency!=='KRW')?` <span style="color:var(--text3);font-size:11px">≈ ${fmt(getKRW(tx))}</span>`:''}</span>
         <button class="del-btn" onclick="delTx(${tx.id})">×</button>
       </div>
     </div>`;
@@ -460,8 +504,11 @@ function setCatFilter(cat){ filterCat=cat; renderTxList(); }
 function addAsset(){
   const name=document.getElementById('asset-name').value.trim();
   const amount=parseFloat(document.getElementById('asset-amount').value);
+  const currency=document.getElementById('asset-currency').value;
+  const rate=FX_RATES[currency] || 1;
+  const krwAmount=toKRW(amount,currency);
   if(!name||!amount) return;
-  assets.push({id:Date.now(),name,amount});
+  assets.push({id:Date.now(),name,amount,currency,rate,krwAmount});
   document.getElementById('asset-name').value='';
   document.getElementById('asset-amount').value='';
   save(); renderAssetList(); updateMetrics(); renderAll();
@@ -479,7 +526,7 @@ function renderAssetList(){
     <div class="asset-item">
       <span class="asset-name">${a.name}</span>
       <div class="asset-right">
-        <span class="asset-val">${fmt(a.amount)}</span>
+        <span class="asset-val">${fmtOriginal(a.amount,a.currency||'KRW')}${(a.currency&&a.currency!=='KRW')?` <span style="color:var(--text3);font-size:11px">≈ ${fmt(getKRW(a))}</span>`:''}</span>
         <button class="del-btn" onclick="delAsset(${a.id})">×</button>
       </div>
     </div>`).join('');
@@ -501,9 +548,9 @@ function delGoal(id){
 }
 
 function getTotalAsset(){
-  const base=assets.reduce((s,a)=>s+a.amount,0);
-  const inc=transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const exp=transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const base=assets.reduce((s,a)=>s+getKRW(a),0);
+  const inc=transactions.filter(t=>t.type==='income').reduce((s,t)=>s+getKRW(t),0);
+  const exp=transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+getKRW(t),0);
   return base+inc-exp;
 }
 
@@ -541,8 +588,8 @@ function updateMetrics(){
   const now=new Date();
   const thisMonth=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
   const mTx=transactions.filter(t=>t.date.startsWith(thisMonth));
-  const inc=mTx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const exp=mTx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const inc=mTx.filter(t=>t.type==='income').reduce((s,t)=>s+getKRW(t),0);
+  const exp=mTx.filter(t=>t.type==='expense').reduce((s,t)=>s+getKRW(t),0);
   const net=inc-exp;
   document.getElementById('m-total').textContent=fmt(total);
   document.getElementById('m-income').textContent=fmt(inc);
@@ -555,7 +602,7 @@ function updateMetrics(){
 }
 
 function getLineData(){
-  const base=assets.reduce((s,a)=>s+a.amount,0);
+  const base=assets.reduce((s,a)=>s+getKRW(a),0);
   const sorted=[...transactions].sort((a,b)=>new Date(a.date)-new Date(b.date));
   const now=new Date();
   let startDate;
@@ -568,10 +615,10 @@ function getLineData(){
     allDates.push(d.toISOString().split('T')[0]);
   }
   let running=base;
-  sorted.filter(t=>t.date<allDates[0]).forEach(t=>{running+=t.type==='income'?t.amount:-t.amount;});
+  sorted.filter(t=>t.date<allDates[0]).forEach(t=>{running+=t.type==='income'?getKRW(t):-getKRW(t);});
   const labels=[],data=[];
   allDates.forEach(date=>{
-    sorted.filter(t=>t.date===date).forEach(t=>{running+=t.type==='income'?t.amount:-t.amount;});
+    sorted.filter(t=>t.date===date).forEach(t=>{running+=t.type==='income'?getKRW(t):-getKRW(t);});
     labels.push(date.slice(5));data.push(Math.round(running));
   });
   return{labels,data};
@@ -612,7 +659,7 @@ function renderLineChart(){
 
 function renderDonut(canvasId,legendId,type){
   const bycat={};
-  transactions.filter(t=>t.type===type).forEach(t=>{bycat[t.cat]=(bycat[t.cat]||0)+t.amount;});
+  transactions.filter(t=>t.type===type).forEach(t=>{bycat[t.cat]=(bycat[t.cat]||0)+getKRW(t);});
   const labels=Object.keys(bycat);
   const vals=labels.map(l=>Math.round(bycat[l]));
   const colors=labels.map(l=>CAT_COLORS[l]||'#888');
